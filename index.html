@@ -148,9 +148,27 @@
   #gameover-overlay .hi-score-msg {
     font-size: 7px;
     color: #ff0;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
     min-height: 16px;
   }
+
+  #leaderboard-table {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .lb-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 4px;
+  }
+  .lb-row.highlight {
+    color: #0f0;
+    background: rgba(0,255,0,0.1);
+  }
+  .lb-rank { width: 24px; color: #888; }
+  .lb-name { flex: 1; color: #fff; }
+  .lb-score { width: 60px; text-align: right; color: #0f0; }
 
   /* Lives */
   #lives-row {
@@ -303,7 +321,27 @@
       <h2>GAME OVER</h2>
       <div class="final-score" id="final-score-display">SCORE: 0000</div>
       <div class="hi-score-msg" id="hiscore-msg"></div>
-      <button id="restartBtn">PLAY AGAIN</button>
+
+      <div id="submit-section">
+        <div style="font-size:6px;color:#aaa;margin-bottom:8px;">ENTER YOUR NAME:</div>
+        <input type="text" id="player-input" maxlength="6"
+               style="font-family:'Press Start 2P',monospace; font-size:10px;
+                      background:#111; color:#0f0; border:2px solid #0f0;
+                      padding:8px 12px; text-align:center; width:120px;
+                      text-transform:uppercase; outline:none;"
+               placeholder="NAME" autocomplete="off" autocorrect="off"
+               autocapitalize="characters" spellcheck="false">
+        <button id="submitBtn" style="font-family:'Press Start 2P',monospace;
+                font-size:8px; background:#0f0; color:#000; border:none;
+                padding:8px 16px; cursor:pointer; margin-left:8px;">SUBMIT</button>
+      </div>
+
+      <div id="leaderboard-section" style="margin-top:16px; width:100%; max-width:280px;">
+        <div style="font-size:7px; color:#FFD700; margin-bottom:8px; text-align:center;">TOP 10</div>
+        <div id="leaderboard-table" style="font-size:6px; color:#ccc;"></div>
+      </div>
+
+      <button id="restartBtn" style="margin-top:16px;">PLAY AGAIN</button>
     </div>
 
     <!-- Help overlay -->
@@ -351,6 +389,9 @@
 'use strict';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
+var API_URL = 'https://arcade-api.petrochenko.info';
+var GAME_ID = 'space-invaders';
+
 var CANVAS_W = 224;
 var CANVAS_H = 256;
 var STEP = 1000 / 60;
@@ -543,6 +584,9 @@ var hiScore;
 var lives;
 var wave;
 var extraLifeAwarded;
+var gameToken = 0;  // timestamp when game started
+var playerName = '';        // 1-6 uppercase letters
+var savedPlayerName = '';   // persisted in localStorage
 
 var player;         // { x, y, w, h }
 var playerBullet;   // null or { x, y, active }
@@ -1126,6 +1170,81 @@ function startWave() {
   state = 'playing';
 }
 
+// ─── Leaderboard ─────────────────────────────────────────────────────────────
+function submitScore() {
+  var input = document.getElementById('player-input');
+  var name = input.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6);
+  if (name.length < 1) { input.style.borderColor = '#f00'; return; }
+
+  // Save name for next time
+  playerName = name;
+  try { localStorage.setItem('si_player', name); } catch(e) {}
+
+  // Disable submit button
+  var btn = document.getElementById('submitBtn');
+  btn.textContent = '...';
+  btn.disabled = true;
+
+  fetch(API_URL + '/api/score', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      game: GAME_ID,
+      player: name,
+      score: score,
+      level: wave,
+      token: gameToken,
+      email: '' // honeypot
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      btn.textContent = '#' + data.rank;
+      btn.style.background = '#FFD700';
+      // Hide submit section after success
+      document.getElementById('submit-section').style.opacity = '0.5';
+      input.disabled = true;
+    } else {
+      btn.textContent = 'ERR';
+      btn.style.background = '#f00';
+    }
+    loadLeaderboard();
+  })
+  .catch(function() {
+    btn.textContent = 'OFFLINE';
+    btn.style.background = '#666';
+  });
+}
+
+function loadLeaderboard() {
+  var container = document.getElementById('leaderboard-table');
+  container.innerHTML = '<div style="text-align:center;color:#555;">Loading...</div>';
+
+  fetch(API_URL + '/api/leaderboard/' + GAME_ID + '?limit=10')
+  .then(function(r) { return r.json(); })
+  .then(function(rows) {
+    if (!rows || rows.length === 0) {
+      container.innerHTML = '<div style="text-align:center;color:#555;">No scores yet</div>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var isMe = (r.player === playerName);
+      html += '<div class="lb-row' + (isMe ? ' highlight' : '') + '">';
+      html += '<span class="lb-rank">' + (i + 1) + '.</span>';
+      html += '<span class="lb-name">' + r.player + '</span>';
+      html += '<span class="lb-score">' + r.score + '</span>';
+      html += '</div>';
+    }
+    container.innerHTML = html;
+  })
+  .catch(function() {
+    container.innerHTML = '<div style="text-align:center;color:#555;">Offline</div>';
+  });
+}
+
 // ─── Game Over ────────────────────────────────────────────────────────────────
 function triggerGameOver() {
   state = 'gameover';
@@ -1138,6 +1257,20 @@ function triggerGameOver() {
     msg = 'NEW HI-SCORE!';
   }
   document.getElementById('hiscore-msg').textContent = msg;
+
+  // Pre-fill saved name
+  var input = document.getElementById('player-input');
+  input.value = savedPlayerName;
+  input.disabled = false;
+  input.style.borderColor = '#0f0';
+  var submitBtn = document.getElementById('submitBtn');
+  submitBtn.textContent = 'SUBMIT';
+  submitBtn.disabled = false;
+  submitBtn.style.background = '#0f0';
+  document.getElementById('submit-section').style.opacity = '1';
+
+  // Load leaderboard
+  loadLeaderboard();
 
   var go = document.getElementById('gameover-overlay');
   go.style.display = 'flex';
@@ -1558,6 +1691,7 @@ function initGame() {
   updateScoreDisplay();
   updateLivesDisplay();
 
+  gameToken = Date.now();
   state = 'playing';
 }
 
@@ -1571,6 +1705,9 @@ function showStartScreen() {
   } catch(e) {
     hiScore = 0;
   }
+
+  // Load saved player name
+  try { savedPlayerName = localStorage.getItem('si_player') || ''; } catch(e) {}
 
   score = 0;
   lives = 3;
@@ -1621,6 +1758,15 @@ document.getElementById('restartBtn').addEventListener('click', function(e) {
   }
 
   initGame();
+});
+
+document.getElementById('submitBtn').addEventListener('click', function(e) {
+  e.preventDefault();
+  submitScore();
+});
+
+document.getElementById('player-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); submitScore(); }
 });
 
 // Help overlay tap to close
