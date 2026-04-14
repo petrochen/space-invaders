@@ -175,14 +175,13 @@
     letter-spacing: 1px;
   }
 
-  @media (pointer: fine) {
-    #dpad { display: none; }
-    #kb-hint { display: block; }
-  }
+  /* D-pad always visible — user may connect BT keyboard to phone */
+  #dpad { display: flex; }
+  #kb-hint { display: none; }
 
-  @media (pointer: coarse) {
-    #dpad { display: flex; }
-    #kb-hint { display: none; }
+  @media (pointer: fine) {
+    /* Desktop: show both D-pad (in case touch screen) and keyboard hint */
+    #kb-hint { display: block; }
   }
 
   /* D-pad */
@@ -246,6 +245,24 @@
     .dpad-btn { width: 74px; height: 74px; font-size: 10px; }
     #btn-fire { font-size: 8px; }
   }
+
+  /* Help overlay */
+  #help-overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.92);
+    z-index: 20;
+    padding: 12px;
+  }
+  #help-overlay.visible { display: flex; }
+  #help-overlay h2 { font-size: 10px; color: #0f0; margin-bottom: 16px; }
+  #help-overlay .help-section { font-size: 6px; color: #ccc; line-height: 2.2; text-align: left; margin-bottom: 12px; }
+  #help-overlay .help-key { color: #0f0; }
+  #help-overlay .help-close { font-size: 6px; color: #666; margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -261,8 +278,8 @@
       <div class="score-value" id="hiscore-display">0000</div>
     </div>
     <div class="col">
-      <div class="score-label">SCORE &lt;2&gt;</div>
-      <div class="score-value">----</div>
+      <div class="score-label">WAVE</div>
+      <div class="score-value" id="wave-display">1</div>
     </div>
   </div>
 
@@ -288,6 +305,32 @@
       <div class="hi-score-msg" id="hiscore-msg"></div>
       <button id="restartBtn">PLAY AGAIN</button>
     </div>
+
+    <!-- Help overlay -->
+    <div id="help-overlay">
+      <h2>CONTROLS</h2>
+      <div class="help-section">
+        <span class="help-key">&#8592; &#8594;</span> or <span class="help-key">A D</span> &mdash; Move<br>
+        <span class="help-key">SPACE</span> &mdash; Fire (1 shot at a time)<br>
+        <span class="help-key">ESC</span> / <span class="help-key">P</span> &mdash; Pause<br>
+        <span class="help-key">H</span> &mdash; This help
+      </div>
+      <h2>SCORING</h2>
+      <div class="help-section">
+        Top row (squid) &mdash; <span class="help-key">30 pts</span><br>
+        Mid rows (crab) &mdash; <span class="help-key">20 pts</span><br>
+        Bottom rows (octopus) &mdash; <span class="help-key">10 pts</span><br>
+        Mystery ship &mdash; <span class="help-key">50-300 pts</span><br>
+        Extra life at <span class="help-key">1500 pts</span>
+      </div>
+      <h2>HOW TO PLAY</h2>
+      <div class="help-section">
+        Destroy all 55 invaders before they<br>
+        reach the bottom. Use shields for cover.<br>
+        Invaders speed up as you destroy them!
+      </div>
+      <div class="help-close">Press H or tap to close</div>
+    </div>
   </div>
 
   <div id="lives-row">
@@ -295,7 +338,7 @@
     <div id="lives-icons"></div>
   </div>
 
-  <div id="kb-hint">&#8592; &#8594; ARROWS &nbsp;&nbsp; SPACE TO FIRE</div>
+  <div id="kb-hint">&#8592; &#8594; MOVE &nbsp; SPACE FIRE &nbsp; ESC PAUSE &nbsp; H HELP</div>
 
   <div id="dpad">
     <button class="dpad-btn" id="btn-left">&#9664;</button>
@@ -675,6 +718,8 @@ function updateScoreDisplay() {
   var h = String(hiScore);
   while (h.length < 4) h = '0' + h;
   document.getElementById('hiscore-display').textContent = h;
+  var wd = document.getElementById('wave-display');
+  if (wd) wd.textContent = wave || 1;
 }
 
 // ─── Entity Creation ──────────────────────────────────────────────────────────
@@ -763,13 +808,28 @@ function initInput() {
       e.preventDefault();
     }
     if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
-      if (state === 'playing') {
+      var helpEl = document.getElementById('help-overlay');
+      if (helpEl.classList.contains('visible')) {
+        helpEl.classList.remove('visible');
+        if (state === 'paused') { paused = false; state = 'playing'; }
+      } else if (state === 'playing') {
         paused = true;
         state = 'paused';
         try { stopUFOSiren(); } catch(ex) {}
       } else if (state === 'paused') {
         paused = false;
         state = 'playing';
+      }
+      e.preventDefault();
+    }
+    if (e.key === 'h' || e.key === 'H') {
+      var helpEl = document.getElementById('help-overlay');
+      if (helpEl.classList.contains('visible')) {
+        helpEl.classList.remove('visible');
+        if (state === 'paused') { paused = false; state = 'playing'; }
+      } else if (state === 'playing' || state === 'paused') {
+        if (state === 'playing') { paused = true; state = 'paused'; try { stopUFOSiren(); } catch(ex) {} }
+        helpEl.classList.add('visible');
       }
       e.preventDefault();
     }
@@ -1484,6 +1544,12 @@ document.getElementById('restartBtn').addEventListener('click', function(e) {
   }
 
   initGame();
+});
+
+// Help overlay tap to close
+document.getElementById('help-overlay').addEventListener('click', function() {
+  this.classList.remove('visible');
+  if (state === 'paused') { paused = false; state = 'playing'; }
 });
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
