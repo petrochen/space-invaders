@@ -313,6 +313,10 @@
         <tr><td>&#9632;&#9632;</td><td>= 20 PTS</td></tr>
         <tr><td>&#9632;</td><td>= 10 PTS</td></tr>
       </table>
+      <div id="start-leaderboard" style="width:100%;max-width:240px;margin-bottom:20px;">
+        <div style="font-size:6px;color:#FFD700;text-align:center;margin-bottom:6px;">TOP PILOTS</div>
+        <div id="start-lb-table" style="font-size:6px;color:#888;text-align:center;">Loading...</div>
+      </div>
       <button id="playBtn">PLAY</button>
     </div>
 
@@ -1731,6 +1735,33 @@ function showStartScreen() {
 
   updateScoreDisplay();
   updateLivesDisplay();
+
+  // Load start screen leaderboard
+  loadStartLeaderboard();
+}
+
+function loadStartLeaderboard() {
+  var container = document.getElementById('start-lb-table');
+  if (!container) return;
+  fetch(API_URL + '/api/leaderboard/' + GAME_ID + '?limit=5')
+  .then(function(r) { return r.json(); })
+  .then(function(rows) {
+    if (!rows || rows.length === 0) {
+      container.innerHTML = '<div style="color:#555;">No scores yet</div>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      html += '<div class="lb-row"><span class="lb-rank">' + (i+1) + '.</span>';
+      html += '<span class="lb-name">' + r.player + '</span>';
+      html += '<span class="lb-score">' + r.score + '</span></div>';
+    }
+    container.innerHTML = html;
+  })
+  .catch(function() {
+    container.innerHTML = '';
+  });
 }
 
 // ─── Button Handlers ──────────────────────────────────────────────────────────
