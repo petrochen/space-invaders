@@ -1014,7 +1014,10 @@ function checkInvaderShieldCollision() {
 function checkInvaderReachedBottom() {
   for (var i = 0; i < invaders.length; i++) {
     var inv = invaders[i];
-    if (inv.alive && inv.y + 8 >= PLAYER_Y) {
+    // Game over when invader body overlaps player row (y + height >= player top)
+    // But allow "wall of death" position: invaders can be on the row just above
+    // Game over triggers when invader BODY reaches ground line, not player Y
+    if (inv.alive && inv.y + 8 >= GROUND_Y) {
       triggerGameOver();
       return;
     }
@@ -1192,9 +1195,13 @@ function fireInvaderBullet() {
   if (shooters.length === 0) return;
 
   var shooter = shooters[Math.floor(Math.random() * shooters.length)];
+  var bulletY = shooter.y + 8;
+  // Nagoya shot: don't fire if bullet would spawn at or below player
+  // (original arcade bug/feature — bullets from lowest rows miss the player)
+  if (bulletY >= PLAYER_Y) return;
   invaderBullets.push({
     x:     shooter.x + Math.floor(shooter.type.width / 2),
-    y:     shooter.y + 8,
+    y:     bulletY,
     speed: INVADER_BULLET_SPEED,
     type:  Math.floor(Math.random() * 3)
   });
