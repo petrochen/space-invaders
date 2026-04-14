@@ -315,15 +315,6 @@ var PLAYER_Y = 216;
 var PLAYER_SPEED = 2;
 var PLAYER_BULLET_SPEED = 5;
 var GROUND_Y = 232;
-var INVADER_ROWS = 5;
-var INVADER_COLS = 11;
-
-var INVADER_W = [12, 11, 8];   // octopus, crab, squid widths
-var INVADER_H = 8;
-var INVADER_SPACING_X = 16;
-var INVADER_SPACING_Y = 16;
-var FORMATION_START_X = 24;
-var FORMATION_START_Y = 64;
 
 // Color palette
 var COLOR_GREEN  = '#00ff00';
@@ -331,6 +322,46 @@ var COLOR_WHITE  = '#ffffff';
 var COLOR_RED    = '#ff0000';
 var COLOR_YELLOW = '#ffff00';
 var COLOR_CYAN   = '#00ffff';
+
+// Invader movement / bullets
+var INVADER_BULLET_SPEED = 2;
+var MAX_INVADER_BULLETS = 3;
+var INVADER_FIRE_INTERVAL_BASE = 90; // frames between shots at full formation
+
+// Shields
+var SHIELD_TEMPLATE = [
+  [0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0],
+  [0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0],
+  [0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0],
+  [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1],
+  [1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1],
+  [1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1]
+];
+
+var SHIELD_POSITIONS = [
+  { x: 32,  y: 192 },
+  { x: 77,  y: 192 },
+  { x: 122, y: 192 },
+  { x: 167, y: 192 }
+];
+
+// UFO
+var UFO_INTERVAL = 1500; // frames between appearances (~25 seconds at 60fps)
+var UFO_SPEED = 1;
+var UFO_SCORES = [100, 50, 50, 100, 150, 100, 100, 50, 300, 100, 100, 100, 50, 150, 100];
+
+// Scoring
+var EXTRA_LIFE_SCORE = 1500;
 
 // ─── Sprites ─────────────────────────────────────────────────────────────────
 
@@ -356,16 +387,16 @@ var EXPLOSION_SPRITE = [
   [1,0,0,1,0,0,0,0,0,1,0,0,1]
 ];
 
-// Squid - 8x8, frame A & B
+// Squid - 8x8, frame A & B (top row, 30 points)
 var SQUID_A = [
   [0,0,0,1,1,0,0,0],
   [0,0,1,1,1,1,0,0],
   [0,1,1,1,1,1,1,0],
   [1,1,0,1,1,0,1,1],
   [1,1,1,1,1,1,1,1],
-  [0,1,1,1,1,1,1,0],
-  [0,1,0,0,0,0,1,0],
-  [1,0,0,0,0,0,0,1]
+  [0,0,1,0,0,1,0,0],
+  [0,1,0,1,1,0,1,0],
+  [1,0,1,0,0,1,0,1]
 ];
 
 var SQUID_B = [
@@ -374,12 +405,12 @@ var SQUID_B = [
   [0,1,1,1,1,1,1,0],
   [1,1,0,1,1,0,1,1],
   [1,1,1,1,1,1,1,1],
-  [0,0,1,1,1,1,0,0],
   [0,1,0,0,0,0,1,0],
+  [1,0,0,1,1,0,0,1],
   [0,1,0,0,0,0,1,0]
 ];
 
-// Crab - 11x8, frame A & B
+// Crab - 11x8, frame A & B (middle rows, 20 points)
 var CRAB_A = [
   [0,0,1,0,0,0,0,0,1,0,0],
   [0,0,0,1,0,0,0,1,0,0,0],
@@ -399,18 +430,18 @@ var CRAB_B = [
   [1,1,1,1,1,1,1,1,1,1,1],
   [0,1,1,1,1,1,1,1,1,1,0],
   [0,0,1,0,0,0,0,0,1,0,0],
-  [1,0,0,0,0,0,0,0,0,0,1]
+  [0,1,0,0,0,0,0,0,0,1,0]
 ];
 
-// Octopus - 12x8, frame A & B
+// Octopus - 12x8, frame A & B (bottom rows, 10 points)
 var OCTOPUS_A = [
   [0,0,0,0,1,1,1,1,0,0,0,0],
   [0,1,1,1,1,1,1,1,1,1,1,0],
   [1,1,1,1,1,1,1,1,1,1,1,1],
   [1,1,1,0,0,1,1,0,0,1,1,1],
   [1,1,1,1,1,1,1,1,1,1,1,1],
-  [0,0,1,1,1,0,0,1,1,1,0,0],
-  [0,1,1,0,0,1,1,0,0,1,1,0],
+  [0,0,0,1,1,0,0,1,1,0,0,0],
+  [0,0,1,1,0,1,1,0,1,1,0,0],
   [1,1,0,0,0,0,0,0,0,0,1,1]
 ];
 
@@ -420,8 +451,8 @@ var OCTOPUS_B = [
   [1,1,1,1,1,1,1,1,1,1,1,1],
   [1,1,1,0,0,1,1,0,0,1,1,1],
   [1,1,1,1,1,1,1,1,1,1,1,1],
-  [0,0,0,1,1,0,0,1,1,0,0,0],
   [0,0,1,1,0,1,1,0,1,1,0,0],
+  [0,1,0,0,1,0,0,1,0,0,1,0],
   [0,0,1,1,0,0,0,0,1,1,0,0]
 ];
 
@@ -430,38 +461,32 @@ var UFO_SPRITE = [
   [0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0],
   [0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0],
   [0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0],
-  [0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0],
+  [0,1,0,1,0,1,0,1,0,1,0,1,0,1,1,0],
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   [0,0,1,1,1,0,0,1,1,0,0,1,1,1,0,0],
   [0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0]
 ];
 
-// Invader bullet sprites (3x6 each)
-var BULLET_ROLLING = [
-  [0,1,0],
-  [1,0,0],
-  [0,1,0],
-  [0,0,1],
-  [0,1,0],
-  [1,0,0]
+// Invader explosion - 12x8
+var INVADER_EXPLOSION = [
+  [0,0,0,1,0,0,1,0,0,0,0,0],
+  [1,0,0,0,0,0,0,0,0,0,0,1],
+  [0,1,0,0,0,1,0,0,0,0,1,0],
+  [0,0,0,0,0,0,0,0,0,0,0,0],
+  [0,0,1,0,0,0,0,0,0,1,0,0],
+  [0,0,0,0,0,0,0,0,0,0,0,0],
+  [0,1,0,0,0,1,0,0,0,0,1,0],
+  [1,0,0,0,0,0,0,0,0,0,0,1]
 ];
-var BULLET_PLUNGER = [
-  [1,1,1],
-  [0,1,0],
-  [0,1,0],
-  [0,1,0],
-  [0,1,0],
-  [1,1,1]
+
+// Invader type descriptors
+var INVADER_TYPES = [
+  { sprite: [SQUID_A,   SQUID_B],   points: 30, width: 8  }, // row 0 — top
+  { sprite: [CRAB_A,    CRAB_B],    points: 20, width: 11 }, // row 1
+  { sprite: [CRAB_A,    CRAB_B],    points: 20, width: 11 }, // row 2
+  { sprite: [OCTOPUS_A, OCTOPUS_B], points: 10, width: 12 }, // row 3
+  { sprite: [OCTOPUS_A, OCTOPUS_B], points: 10, width: 12 }  // row 4 — bottom
 ];
-var BULLET_SQUIGGLY = [
-  [0,1,1],
-  [0,1,0],
-  [1,1,0],
-  [0,1,1],
-  [0,1,0],
-  [1,1,0]
-];
-var INV_BULLET_SPRITES = [BULLET_ROLLING, BULLET_PLUNGER, BULLET_SQUIGGLY];
 
 // ─── Canvas Setup ─────────────────────────────────────────────────────────────
 var canvas = document.getElementById('gameCanvas');
@@ -473,22 +498,34 @@ var score;
 var hiScore;
 var lives;
 var wave;
-var extraLifeGiven;
+var extraLifeAwarded;
 
 var player;         // { x, y, w, h }
 var playerBullet;   // null or { x, y, active }
 var explosions;     // array of { x, y, frames }
 
 // Invaders
-var invaders;       // flat array of { row, col, type, alive, x, y, frame }
-var invaderFrame;   // 0 or 1 (global animation toggle)
+var invaders;           // flat array of { row, col, type, alive, exploding, x, y }
+var invaderDir;         // 1 = right, -1 = left
+var invaderStepTimer;   // frames since last step
+var invaderAnimFrame;   // 0 or 1 — toggles on every step
+var invaderMoveInterval; // frames between steps; shrinks as invaders die
+var invaderFireTimer;   // frames since last invader shot
 
 // Invader bullets
-var invaderBullets; // array of { x, y, type, active }
+var invaderBullets; // array of { x, y, speed, type }
+
+// Shields
+var shields;        // array of { x, y, bitmap }
 
 // UFO
-var ufo;            // null or { x, y, dir, active }
+var ufo;            // null or { x, y, dir, scoreValue }
 var ufoTimer;       // frames since last UFO appeared
+var ufoScoreIndex;  // cycles through UFO_SCORES
+var ufoScorePopup;  // null or { x, y, text, timer }
+
+// Wave
+var waveStartY;
 
 // Dead state
 var deadTimer;
@@ -557,25 +594,40 @@ function drawPlayerBullet() {
 function drawInvaders() {
   for (var i = 0; i < invaders.length; i++) {
     var inv = invaders[i];
+    if (inv.exploding > 0) {
+      inv.exploding--;
+      drawSprite(INVADER_EXPLOSION, inv.x, inv.y, COLOR_WHITE);
+      continue;
+    }
     if (!inv.alive) continue;
-    var spr = getInvaderSprite(inv.type, inv.frame);
-    var color = getInvaderColor(inv.type);
-    drawSprite(spr, inv.x, inv.y, color);
+    var sprite = inv.type.sprite[invaderAnimFrame];
+    drawSprite(sprite, inv.x, inv.y, COLOR_WHITE);
   }
 }
 
 function drawInvaderBullets() {
+  ctx.fillStyle = COLOR_WHITE;
   for (var i = 0; i < invaderBullets.length; i++) {
     var b = invaderBullets[i];
-    if (!b.active) return;
-    var spr = INV_BULLET_SPRITES[b.type];
-    drawSprite(spr, Math.floor(b.x), Math.floor(b.y), COLOR_WHITE);
+    ctx.fillRect(Math.floor(b.x), Math.floor(b.y), 2, 6);
   }
 }
 
 function drawUFO() {
-  if (!ufo || !ufo.active) return;
-  drawSprite(UFO_SPRITE, Math.floor(ufo.x), ufo.y, COLOR_RED);
+  if (ufo) {
+    drawSprite(UFO_SPRITE, Math.floor(ufo.x), ufo.y, COLOR_RED);
+  }
+  // Score popup after UFO destruction
+  if (ufoScorePopup) {
+    ufoScorePopup.timer--;
+    ctx.save();
+    ctx.fillStyle = COLOR_RED;
+    ctx.font = '6px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(ufoScorePopup.text, ufoScorePopup.x + 8, ufoScorePopup.y + 4);
+    ctx.restore();
+    if (ufoScorePopup.timer <= 0) ufoScorePopup = null;
+  }
 }
 
 function drawExplosions() {
@@ -585,18 +637,6 @@ function drawExplosions() {
       drawSprite(EXPLOSION_SPRITE, ex.x, ex.y, COLOR_YELLOW);
     }
   }
-}
-
-function getInvaderSprite(type, frame) {
-  if (type === 0) return frame === 0 ? SQUID_A  : SQUID_B;
-  if (type === 1) return frame === 0 ? CRAB_A   : CRAB_B;
-  return frame === 0 ? OCTOPUS_A : OCTOPUS_B;
-}
-
-function getInvaderColor(type) {
-  if (type === 0) return COLOR_CYAN;    // squid - top row
-  if (type === 1) return COLOR_WHITE;   // crab - middle rows
-  return COLOR_GREEN;                   // octopus - bottom rows
 }
 
 // ─── Lives Display ────────────────────────────────────────────────────────────
@@ -646,33 +686,60 @@ function createPlayer() {
   };
 }
 
-function createInvaders() {
-  invaders = [];
-  invaderFrame = 0;
-
-  // Row types: 0=squid (top), 1=crab, 1=crab, 2=octopus, 2=octopus (bottom)
-  var rowTypes = [0, 1, 1, 2, 2];
-
-  for (var row = 0; row < INVADER_ROWS; row++) {
-    for (var col = 0; col < INVADER_COLS; col++) {
-      var type = rowTypes[row];
-      var w = INVADER_W[type];
-      // Center each invader within its cell
-      var cellW = INVADER_SPACING_X;
-      var offsetX = Math.floor((cellW - w) / 2);
-      var x = FORMATION_START_X + col * INVADER_SPACING_X + offsetX;
-      var y = FORMATION_START_Y + row * INVADER_SPACING_Y;
-      invaders.push({
-        row: row,
-        col: col,
-        type: type,
-        alive: true,
-        x: x,
-        y: y,
-        frame: 0,
-        w: w,
-        h: INVADER_H
+// Build the 5x11 invader formation. startY is the top of the formation.
+function createInvaders(startY) {
+  startY = (startY !== undefined) ? startY : 48;
+  var result = [];
+  for (var row = 0; row < 5; row++) {
+    for (var col = 0; col < 11; col++) {
+      result.push({
+        row:       row,
+        col:       col,
+        x:         26 + col * 16,
+        y:         startY + row * 16,
+        type:      INVADER_TYPES[row],
+        alive:     true,
+        exploding: 0
       });
+    }
+  }
+  return result;
+}
+
+// Reset invader state for a new wave
+function resetInvaderState(startY) {
+  invaders           = createInvaders(startY);
+  invaderBullets     = [];
+  invaderDir         = 1;
+  invaderStepTimer   = 0;
+  invaderAnimFrame   = 0;
+  invaderMoveInterval = 60;
+  invaderFireTimer   = 0;
+}
+
+// ─── Shield Creation ──────────────────────────────────────────────────────────
+function createShields() {
+  shields = [];
+  for (var i = 0; i < 4; i++) {
+    var bitmap = SHIELD_TEMPLATE.map(function(row) { return row.slice(); });
+    shields.push({
+      x: SHIELD_POSITIONS[i].x,
+      y: SHIELD_POSITIONS[i].y,
+      bitmap: bitmap
+    });
+  }
+}
+
+function drawShields() {
+  ctx.fillStyle = COLOR_GREEN;
+  for (var si = 0; si < shields.length; si++) {
+    var s = shields[si];
+    for (var r = 0; r < 16; r++) {
+      for (var c = 0; c < 22; c++) {
+        if (s.bitmap[r][c]) {
+          ctx.fillRect(s.x + c, s.y + r, 1, 1);
+        }
+      }
     }
   }
 }
@@ -765,35 +832,107 @@ function aabbHit(ax, ay, aw, ah, bx, by, bw, bh) {
          ay < by + bh && ay + ah > by;
 }
 
+// Player bullet vs invaders — returns true if hit
 function checkPlayerBulletVsInvaders() {
   if (!playerBullet || !playerBullet.active) return;
   var bx = playerBullet.x;
   var by = playerBullet.y;
   for (var i = 0; i < invaders.length; i++) {
     var inv = invaders[i];
-    if (!inv.alive) continue;
-    if (aabbHit(bx, by, 1, 4, inv.x, inv.y, inv.w, inv.h)) {
-      inv.alive = false;
+    if (!inv.alive || inv.exploding > 0) continue;
+    var iw = inv.type.width;
+    if (bx >= inv.x && bx <= inv.x + iw &&
+        by >= inv.y && by <= inv.y + 8) {
+      inv.alive     = false;
+      inv.exploding = 10;
       playerBullet.active = false;
-      // Scoring
-      var pts = [30, 20, 10][inv.type];
-      addScore(pts);
-      // Explosion
-      explosions.push({ x: inv.x, y: inv.y, frames: 20 });
+      addScore(inv.type.points);
       break;
     }
   }
 }
 
+// Invader bullets vs player
 function checkInvaderBulletsVsPlayer() {
   if (state !== 'playing') return;
-  for (var i = 0; i < invaderBullets.length; i++) {
+  for (var i = invaderBullets.length - 1; i >= 0; i--) {
     var b = invaderBullets[i];
-    if (!b.active) continue;
-    if (aabbHit(Math.floor(b.x), Math.floor(b.y), 3, 6, player.x, player.y, player.w, player.h)) {
-      b.active = false;
+    if (b.x >= player.x && b.x <= player.x + player.w &&
+        b.y >= player.y && b.y <= player.y + player.h) {
+      invaderBullets.splice(i, 1);
       killPlayer();
       return;
+    }
+  }
+}
+
+// Player bullet vs UFO
+function checkPlayerBulletVsUFO() {
+  if (!playerBullet || !playerBullet.active) return;
+  if (!ufo) return;
+  var bx = playerBullet.x;
+  var by = playerBullet.y;
+  if (bx >= ufo.x && bx <= ufo.x + 16 &&
+      by >= ufo.y && by <= ufo.y + 7) {
+    ufoScorePopup = { x: ufo.x, y: ufo.y, text: '' + ufo.scoreValue, timer: 60 };
+    addScore(ufo.scoreValue);
+    stopUFOSiren();
+    ufo = null;
+    playerBullet.active = false;
+  }
+}
+
+// Bullet vs shields (pixel-level erosion)
+// goingUp: true for player bullet, false for invader bullet
+// Returns true if bullet was absorbed
+function checkBulletShieldCollision(bullet, goingUp) {
+  var bx = Math.floor(bullet.x);
+  var by = Math.floor(bullet.y);
+  for (var si = 0; si < shields.length; si++) {
+    var s = shields[si];
+    var lx = bx - s.x;
+    var ly = by - s.y;
+    if (lx < 0 || lx >= 22 || ly < 0 || ly >= 16) continue;
+    if (s.bitmap[ly] && s.bitmap[ly][lx]) {
+      var erodeR = 3;
+      for (var dy = -erodeR; dy <= erodeR; dy++) {
+        if (goingUp  && dy > 1)  continue;
+        if (!goingUp && dy < -1) continue;
+        for (var dx = -erodeR; dx <= erodeR; dx++) {
+          var ny = ly + dy;
+          var nx = lx + dx;
+          if (ny >= 0 && ny < 16 && nx >= 0 && nx < 22) {
+            s.bitmap[ny][nx] = 0;
+          }
+        }
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+// Invaders destroy shields on overlap
+function checkInvaderShieldCollision() {
+  for (var ii = 0; ii < invaders.length; ii++) {
+    var inv = invaders[ii];
+    if (!inv.alive) continue;
+    var iw = inv.type.width;
+    for (var si = 0; si < shields.length; si++) {
+      var s = shields[si];
+      if (inv.x + iw > s.x && inv.x < s.x + 22 &&
+          inv.y + 8  > s.y && inv.y < s.y + 16) {
+        for (var r = 0; r < 16; r++) {
+          for (var c = 0; c < 22; c++) {
+            var sx = s.x + c;
+            var sy = s.y + r;
+            if (sx >= inv.x && sx < inv.x + iw &&
+                sy >= inv.y && sy < inv.y + 8) {
+              s.bitmap[r][c] = 0;
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -801,7 +940,7 @@ function checkInvaderBulletsVsPlayer() {
 function checkInvaderReachedBottom() {
   for (var i = 0; i < invaders.length; i++) {
     var inv = invaders[i];
-    if (inv.alive && inv.y + inv.h >= GROUND_Y) {
+    if (inv.alive && inv.y + 8 >= PLAYER_Y) {
       triggerGameOver();
       return;
     }
@@ -811,9 +950,11 @@ function checkInvaderReachedBottom() {
 // ─── Scoring ──────────────────────────────────────────────────────────────────
 function addScore(pts) {
   score += pts;
-  if (!extraLifeGiven && score >= 1500) {
+  if (!extraLifeAwarded && score >= EXTRA_LIFE_SCORE) {
+    extraLifeAwarded = true;
     lives++;
-    extraLifeGiven = true;
+    updateLivesDisplay();
+    playExtraLife();
   }
   if (score > hiScore) {
     hiScore = score;
@@ -848,14 +989,11 @@ function updateDeadState() {
 
 // ─── Wave Logic ───────────────────────────────────────────────────────────────
 function checkWaveComplete() {
-  var anyAlive = false;
   for (var i = 0; i < invaders.length; i++) {
-    if (invaders[i].alive) { anyAlive = true; break; }
+    if (invaders[i].alive) return;
   }
-  if (!anyAlive) {
-    state = 'nextwave';
-    nextwaveTimer = 0;
-  }
+  state = 'nextwave';
+  nextwaveTimer = 0;
 }
 
 function updateNextwave() {
@@ -867,12 +1005,14 @@ function updateNextwave() {
 }
 
 function startWave() {
+  waveStartY = Math.min(48 + (wave - 1) * 8, 88);
   createPlayer();
-  createInvaders();
+  resetInvaderState(waveStartY);
+  createShields();
   playerBullet = null;
-  invaderBullets = [];
   ufo = null;
   ufoTimer = 0;
+  stopUFOSiren();
   explosions = [];
   state = 'playing';
 }
@@ -894,70 +1034,109 @@ function triggerGameOver() {
   go.style.display = 'flex';
 }
 
-// ─── UFO (stub for Agent 3) ───────────────────────────────────────────────────
+// ─── UFO ─────────────────────────────────────────────────────────────────────
 function updateUFO() {
-  ufoTimer++;
-
-  if (!ufo || !ufo.active) {
-    // Spawn roughly every 25 seconds (1500 frames at 60fps)
-    if (ufoTimer >= 1500) {
+  if (ufo === null) {
+    ufoTimer++;
+    if (ufoTimer >= UFO_INTERVAL) {
       ufoTimer = 0;
       var dir = (Math.random() < 0.5) ? 1 : -1;
       ufo = {
         x: dir === 1 ? -16 : CANVAS_W,
-        y: 18,
+        y: 24,
         dir: dir,
-        active: true
+        scoreValue: UFO_SCORES[ufoScoreIndex % UFO_SCORES.length]
       };
+      ufoScoreIndex++;
+      playUFOSiren();
     }
     return;
   }
 
-  ufo.x += ufo.dir * 2;
-  if (ufo.x > CANVAS_W + 16 || ufo.x < -32) {
-    ufo.active = false;
+  ufo.x += ufo.dir * UFO_SPEED;
+  if (ufo.x < -20 || ufo.x > CANVAS_W + 20) {
+    ufo = null;
+    stopUFOSiren();
   }
 }
 
-// ─── Invader Bullets (stub for Agent 2) ───────────────────────────────────────
-function updateInvaderBullets() {
-  // Move existing bullets
-  for (var i = 0; i < invaderBullets.length; i++) {
-    var b = invaderBullets[i];
-    if (!b.active) continue;
-    b.y += 2;
-    if (b.y > GROUND_Y) {
-      b.active = false;
+// ─── Invader Movement & Bullets ───────────────────────────────────────────────
+function moveInvaders() {
+  invaderStepTimer++;
+  if (invaderStepTimer < invaderMoveInterval) return;
+  invaderStepTimer = 0;
+  invaderAnimFrame = 1 - invaderAnimFrame;
+
+  var shouldDrop = false;
+  for (var i = 0; i < invaders.length; i++) {
+    var inv = invaders[i];
+    if (!inv.alive) continue;
+    var nextX = inv.x + invaderDir * 2;
+    if (nextX <= 4 || nextX + inv.type.width >= CANVAS_W - 4) {
+      shouldDrop = true;
+      break;
     }
   }
 
-  // Remove inactive
-  invaderBullets = invaderBullets.filter(function(b) { return b.active; });
-
-  // Fire new bullet occasionally (simple placeholder logic)
-  if (invaderBullets.length < 3 && Math.random() < 0.005) {
-    // pick a random alive bottom invader
-    var columns = {};
-    for (var j = 0; j < invaders.length; j++) {
-      var inv = invaders[j];
-      if (!inv.alive) continue;
-      var col = inv.col;
-      if (!columns[col] || inv.row > columns[col].row) {
-        columns[col] = inv;
-      }
+  if (shouldDrop) {
+    for (var i = 0; i < invaders.length; i++) {
+      if (invaders[i].alive) invaders[i].y += 8;
     }
-    var colKeys = Object.keys(columns);
-    if (colKeys.length > 0) {
-      var chosen = columns[colKeys[Math.floor(Math.random() * colKeys.length)]];
-      invaderBullets.push({
-        x: chosen.x + Math.floor(chosen.w / 2) - 1,
-        y: chosen.y + chosen.h,
-        type: Math.floor(Math.random() * 3),
-        active: true
-      });
+    invaderDir *= -1;
+    checkInvaderShieldCollision();
+  } else {
+    for (var i = 0; i < invaders.length; i++) {
+      if (invaders[i].alive) invaders[i].x += invaderDir * 2;
+    }
+  }
+
+  var alive = 0;
+  for (var i = 0; i < invaders.length; i++) {
+    if (invaders[i].alive) alive++;
+  }
+  invaderMoveInterval = Math.max(2, Math.floor(alive * 60 / 55));
+}
+
+function fireInvaderBullet() {
+  var fireInterval = Math.max(30, invaderMoveInterval * 2);
+  invaderFireTimer++;
+  if (invaderFireTimer < fireInterval) return;
+  if (invaderBullets.length >= MAX_INVADER_BULLETS) return;
+  invaderFireTimer = 0;
+
+  var shooters = [];
+  for (var c = 0; c < 11; c++) {
+    var bottomInv = null;
+    for (var r = 4; r >= 0; r--) {
+      var inv = invaders[r * 11 + c];
+      if (inv && inv.alive) { bottomInv = inv; break; }
+    }
+    if (bottomInv) shooters.push(bottomInv);
+  }
+  if (shooters.length === 0) return;
+
+  var shooter = shooters[Math.floor(Math.random() * shooters.length)];
+  invaderBullets.push({
+    x:     shooter.x + Math.floor(shooter.type.width / 2),
+    y:     shooter.y + 8,
+    speed: INVADER_BULLET_SPEED,
+    type:  Math.floor(Math.random() * 3)
+  });
+}
+
+function moveInvaderBullets() {
+  for (var i = invaderBullets.length - 1; i >= 0; i--) {
+    invaderBullets[i].y += invaderBullets[i].speed;
+    if (invaderBullets[i].y > GROUND_Y) {
+      invaderBullets.splice(i, 1);
     }
   }
 }
+
+// Audio stubs (no-ops until audio section implements them)
+if (typeof playUFOSiren  === 'undefined') { var playUFOSiren  = function() {}; }
+if (typeof stopUFOSiren  === 'undefined') { var stopUFOSiren  = function() {}; }
+if (typeof playExtraLife === 'undefined') { var playExtraLife = function() {}; }
 
 // ─── Explosion ticks ──────────────────────────────────────────────────────────
 function updateExplosions() {
@@ -973,6 +1152,7 @@ function updateExplosions() {
 function render() {
   clearCanvas();
   drawGround();
+  drawShields();
   drawInvaders();
   drawUFO();
   drawPlayerBullet();
@@ -991,11 +1171,30 @@ function update() {
     }
 
     movePlayerBullet();
-    updateInvaderBullets();
+    moveInvaders();
+    fireInvaderBullet();
+    moveInvaderBullets();
     updateUFO();
     updateExplosions();
 
-    checkPlayerBulletVsInvaders();
+    // Player bullet collisions
+    if (playerBullet && playerBullet.active) {
+      if (checkBulletShieldCollision(playerBullet, true)) {
+        playerBullet.active = false;
+      } else {
+        checkPlayerBulletVsInvaders();
+        checkPlayerBulletVsUFO();
+      }
+    }
+
+    // Invader bullet collisions
+    for (var i = invaderBullets.length - 1; i >= 0; i--) {
+      var ib = invaderBullets[i];
+      if (checkBulletShieldCollision(ib, false)) {
+        invaderBullets.splice(i, 1);
+      }
+    }
+
     checkInvaderBulletsVsPlayer();
     checkInvaderReachedBottom();
     checkWaveComplete();
@@ -1040,11 +1239,15 @@ function initGame() {
   score = 0;
   lives = 3;
   wave = 1;
-  extraLifeGiven = false;
+  waveStartY = 48;
+  extraLifeAwarded = false;
   invaderBullets = [];
   explosions = [];
+  shields = [];
   ufo = null;
   ufoTimer = 0;
+  ufoScoreIndex = 0;
+  ufoScorePopup = null;
   deadTimer = 0;
   nextwaveTimer = 0;
   playerBullet = null;
@@ -1052,7 +1255,8 @@ function initGame() {
   accumulator = 0;
 
   createPlayer();
-  createInvaders();
+  resetInvaderState(waveStartY);
+  createShields();
 
   updateScoreDisplay();
   updateLivesDisplay();
@@ -1074,11 +1278,15 @@ function showStartScreen() {
   score = 0;
   lives = 3;
   wave = 1;
-  extraLifeGiven = false;
+  waveStartY = 48;
+  extraLifeAwarded = false;
   invaderBullets = [];
   explosions = [];
+  shields = [];
   ufo = null;
   ufoTimer = 0;
+  ufoScoreIndex = 0;
+  ufoScorePopup = null;
   playerBullet = null;
   invaders = [];
 
