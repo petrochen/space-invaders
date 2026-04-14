@@ -547,6 +547,7 @@ var extraLifeAwarded;
 var player;         // { x, y, w, h }
 var playerBullet;   // null or { x, y, active }
 var explosions;     // array of { x, y, frames }
+var shotsFired;     // total shots fired by player (for UFO scoring)
 
 // Invaders
 var invaders;           // flat array of { row, col, type, alive, exploding, x, y }
@@ -650,10 +651,26 @@ function drawInvaders() {
 }
 
 function drawInvaderBullets() {
-  ctx.fillStyle = COLOR_WHITE;
   for (var i = 0; i < invaderBullets.length; i++) {
     var b = invaderBullets[i];
-    ctx.fillRect(Math.floor(b.x), Math.floor(b.y), 2, 6);
+    ctx.fillStyle = '#fff';
+    if (b.type === 0) {
+      // Rolling: alternating pixels
+      var frame = Math.floor(b.y / 4) % 2;
+      ctx.fillRect(b.x, b.y, 2, 1);
+      ctx.fillRect(b.x + (frame ? 1 : -1), b.y + 2, 2, 1);
+      ctx.fillRect(b.x, b.y + 4, 2, 1);
+    } else if (b.type === 1) {
+      // Plunger: cross shape
+      ctx.fillRect(b.x, b.y, 2, 6);
+      ctx.fillRect(b.x - 1, b.y + 2, 4, 1);
+    } else {
+      // Squiggly: zigzag
+      var frame = Math.floor(b.y / 3) % 2;
+      ctx.fillRect(b.x + (frame ? 1 : 0), b.y, 1, 2);
+      ctx.fillRect(b.x + (frame ? 0 : 1), b.y + 2, 1, 2);
+      ctx.fillRect(b.x + (frame ? 1 : 0), b.y + 4, 1, 2);
+    }
   }
 }
 
@@ -888,6 +905,7 @@ function firePlayerBullet() {
     y: player.y - 4,
     active: true
   };
+  shotsFired++;
   playShoot();
 }
 
@@ -1011,6 +1029,19 @@ function checkInvaderShieldCollision() {
   }
 }
 
+function checkInvaderPlayerContact() {
+  for (var i = 0; i < invaders.length; i++) {
+    var inv = invaders[i];
+    if (!inv.alive) continue;
+    // AABB overlap check
+    if (inv.x + inv.type.width > player.x && inv.x < player.x + player.w &&
+        inv.y + 8 > player.y && inv.y < player.y + player.h) {
+      killPlayer();
+      return;
+    }
+  }
+}
+
 function checkInvaderReachedBottom() {
   for (var i = 0; i < invaders.length; i++) {
     var inv = invaders[i];
@@ -1119,13 +1150,13 @@ function updateUFO() {
     if (ufoTimer >= UFO_INTERVAL) {
       ufoTimer = 0;
       var dir = (Math.random() < 0.5) ? 1 : -1;
+      var ufoScoreTable = [100, 50, 50, 150, 100, 100, 50, 300]; // 8-value cycle based on shotsFired
       ufo = {
         x: dir === 1 ? -16 : CANVAS_W,
         y: 24,
         dir: dir,
-        scoreValue: UFO_SCORES[ufoScoreIndex % UFO_SCORES.length]
+        scoreValue: ufoScoreTable[shotsFired % ufoScoreTable.length]
       };
-      ufoScoreIndex++;
       playUFOSiren();
     }
     return;
@@ -1194,7 +1225,22 @@ function fireInvaderBullet() {
   }
   if (shooters.length === 0) return;
 
-  var shooter = shooters[Math.floor(Math.random() * shooters.length)];
+  // Weight columns by proximity to player (closer = more likely to fire)
+  var weights = [];
+  var totalWeight = 0;
+  for (var si = 0; si < shooters.length; si++) {
+    var dx = Math.abs((shooters[si].x + shooters[si].type.width / 2) - (player.x + player.w / 2));
+    var w = Math.max(1, CANVAS_W - dx); // closer = higher weight
+    weights.push(w);
+    totalWeight += w;
+  }
+  var rnd = Math.random() * totalWeight;
+  var cumulative = 0;
+  var shooter = shooters[0];
+  for (var si = 0; si < shooters.length; si++) {
+    cumulative += weights[si];
+    if (rnd <= cumulative) { shooter = shooters[si]; break; }
+  }
   var bulletY = shooter.y + 8;
   // Nagoya shot: don't fire if bullet would spawn at or below player
   // (original arcade bug/feature — bullets from lowest rows miss the player)
@@ -1366,6 +1412,15 @@ function updateExplosions() {
 // ─── Main Render ──────────────────────────────────────────────────────────────
 function render() {
   clearCanvas();
+
+  // Color region overlays (original arcade cellophane effect)
+  ctx.globalAlpha = 0.08;
+  ctx.fillStyle = '#FF0000';
+  ctx.fillRect(0, 0, CANVAS_W, 40); // Red: UFO/score area
+  ctx.fillStyle = '#00FF00';
+  ctx.fillRect(0, 184, CANVAS_W, CANVAS_H - 184); // Green: shields/player/ground area
+  ctx.globalAlpha = 1.0;
+
   drawGround();
   drawShields();
   drawInvaders();
@@ -1405,6 +1460,18 @@ function update() {
     updateUFO();
     updateExplosions();
 
+    // Bullet-bullet collision: player bullet destroys invader bullet on contact
+    if (playerBullet && playerBullet.active) {
+      for (var i = invaderBullets.length - 1; i >= 0; i--) {
+        var ib = invaderBullets[i];
+        if (Math.abs(playerBullet.x - ib.x) < 3 && Math.abs(playerBullet.y - ib.y) < 6) {
+          invaderBullets.splice(i, 1);
+          playerBullet.active = false;
+          break;
+        }
+      }
+    }
+
     // Player bullet collisions
     if (playerBullet && playerBullet.active) {
       if (checkBulletShieldCollision(playerBullet, true)) {
@@ -1424,7 +1491,8 @@ function update() {
     }
 
     checkInvaderBulletsVsPlayer();
-    checkInvaderReachedBottom();
+    if (state === 'playing') checkInvaderReachedBottom();
+    if (state === 'playing') checkInvaderPlayerContact();
     checkWaveComplete();
 
   } else if (state === 'dead') {
@@ -1476,6 +1544,7 @@ function initGame() {
   ufoTimer = 0;
   ufoScoreIndex = 0;
   ufoScorePopup = null;
+  shotsFired = 0;
   deadTimer = 0;
   nextwaveTimer = 0;
   playerBullet = null;
@@ -1515,6 +1584,7 @@ function showStartScreen() {
   ufoTimer = 0;
   ufoScoreIndex = 0;
   ufoScorePopup = null;
+  shotsFired = 0;
   playerBullet = null;
   invaders = [];
 
