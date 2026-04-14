@@ -493,7 +493,8 @@ var canvas = document.getElementById('gameCanvas');
 var ctx = canvas.getContext('2d');
 
 // ─── Game State ───────────────────────────────────────────────────────────────
-var state;          // 'start' | 'playing' | 'dead' | 'nextwave' | 'gameover'
+var state;          // 'start' | 'playing' | 'paused' | 'dead' | 'nextwave' | 'gameover'
+var paused = false;
 var score;
 var hiScore;
 var lives;
@@ -759,6 +760,17 @@ function initInput() {
     }
     if (e.key === ' ') {
       keys.fire = true;
+      e.preventDefault();
+    }
+    if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+      if (state === 'playing') {
+        paused = true;
+        state = 'paused';
+        try { stopUFOSiren(); } catch(ex) {}
+      } else if (state === 'paused') {
+        paused = false;
+        state = 'playing';
+      }
       e.preventDefault();
     }
   });
@@ -1295,10 +1307,23 @@ function render() {
   drawInvaderBullets();
   drawExplosions();
   drawPlayer();
+
+  if (state === 'paused') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.fillStyle = '#fff';
+    ctx.font = '8px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('PAUSED', CANVAS_W / 2, CANVAS_H / 2);
+    ctx.font = '5px "Press Start 2P", monospace';
+    ctx.fillText('ESC TO RESUME', CANVAS_W / 2, CANVAS_H / 2 + 16);
+  }
 }
 
 // ─── Game Update ──────────────────────────────────────────────────────────────
 function update() {
+  if (state === 'paused') return;
   if (state === 'playing') {
     movePlayer();
 
