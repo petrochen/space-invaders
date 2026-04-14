@@ -816,6 +816,7 @@ function firePlayerBullet() {
     y: player.y - 4,
     active: true
   };
+  playShoot();
 }
 
 function movePlayerBullet() {
@@ -847,6 +848,7 @@ function checkPlayerBulletVsInvaders() {
       inv.exploding = 10;
       playerBullet.active = false;
       addScore(inv.type.points);
+      playInvaderDeath();
       break;
     }
   }
@@ -970,6 +972,7 @@ function killPlayer() {
   updateLivesDisplay();
   state = 'dead';
   deadTimer = 0;
+  playPlayerDeath();
 }
 
 function updateDeadState() {
@@ -1095,6 +1098,7 @@ function moveInvaders() {
     if (invaders[i].alive) alive++;
   }
   invaderMoveInterval = Math.max(2, Math.floor(alive * 60 / 55));
+  playMarchNote();
 }
 
 function fireInvaderBullet() {
@@ -1133,10 +1137,142 @@ function moveInvaderBullets() {
   }
 }
 
-// Audio stubs (no-ops until audio section implements them)
-if (typeof playUFOSiren  === 'undefined') { var playUFOSiren  = function() {}; }
-if (typeof stopUFOSiren  === 'undefined') { var stopUFOSiren  = function() {}; }
-if (typeof playExtraLife === 'undefined') { var playExtraLife = function() {}; }
+// ─── Audio ────────────────────────────────────────────────────────────────────
+var audioCtx = null;
+
+function getAudioCtx() {
+  if (!audioCtx) {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch(e) { return null; }
+  }
+  if (audioCtx.state === 'suspended') {
+    try { audioCtx.resume(); } catch(e) {}
+  }
+  return audioCtx;
+}
+
+// Invader march — 4-note descending bass loop, one note per step
+var marchNotes = [130.81, 123.47, 116.54, 110.00]; // C3, B2, Bb2, A2
+var marchIndex = 0;
+
+function playMarchNote() {
+  var ac = getAudioCtx(); if (!ac) return;
+  try {
+    var osc = ac.createOscillator();
+    var gain = ac.createGain();
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.type = 'square';
+    osc.frequency.value = marchNotes[marchIndex];
+    gain.gain.setValueAtTime(0.15, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.12);
+    osc.start(ac.currentTime);
+    osc.stop(ac.currentTime + 0.13);
+    marchIndex = (marchIndex + 1) % 4;
+  } catch(e) {}
+}
+
+// Player shoot — short sharp burst
+function playShoot() {
+  var ac = getAudioCtx(); if (!ac) return;
+  try {
+    var osc = ac.createOscillator();
+    var gain = ac.createGain();
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(1200, ac.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(200, ac.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.15, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.1);
+    osc.start(ac.currentTime);
+    osc.stop(ac.currentTime + 0.11);
+  } catch(e) {}
+}
+
+// Invader death — descending chirp/crunch
+function playInvaderDeath() {
+  var ac = getAudioCtx(); if (!ac) return;
+  try {
+    var osc = ac.createOscillator();
+    var gain = ac.createGain();
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(800, ac.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(100, ac.currentTime + 0.2);
+    gain.gain.setValueAtTime(0.12, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.22);
+    osc.start(ac.currentTime);
+    osc.stop(ac.currentTime + 0.23);
+  } catch(e) {}
+}
+
+// UFO siren — oscillating tone while UFO is visible
+var ufoOsc = null, ufoGain = null, ufoSirenRunning = false;
+
+function playUFOSiren() {
+  var ac = getAudioCtx(); if (!ac) return;
+  try {
+    stopUFOSiren();
+    ufoOsc = ac.createOscillator();
+    ufoGain = ac.createGain();
+    ufoOsc.connect(ufoGain); ufoGain.connect(ac.destination);
+    ufoOsc.type = 'sine';
+    ufoGain.gain.value = 0.1;
+    ufoSirenRunning = true;
+    var phase = 0;
+    function mod() {
+      if (!ufoSirenRunning) return;
+      phase += 0.1;
+      try { ufoOsc.frequency.value = 400 + Math.sin(phase) * 200; } catch(e) {}
+      setTimeout(mod, 30);
+    }
+    ufoOsc.start();
+    mod();
+  } catch(e) {}
+}
+
+function stopUFOSiren() {
+  ufoSirenRunning = false;
+  if (ufoOsc) { try { ufoOsc.stop(); } catch(e) {} ufoOsc = null; }
+  ufoGain = null;
+}
+
+// Player death — long descending tone
+function playPlayerDeath() {
+  var ac = getAudioCtx(); if (!ac) return;
+  try {
+    stopUFOSiren();
+    var osc = ac.createOscillator();
+    var gain = ac.createGain();
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(600, ac.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, ac.currentTime + 1.5);
+    gain.gain.setValueAtTime(0.2, ac.currentTime);
+    gain.gain.setValueAtTime(0.2, ac.currentTime + 1.2);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 1.6);
+    osc.start(ac.currentTime);
+    osc.stop(ac.currentTime + 1.7);
+  } catch(e) {}
+}
+
+// Extra life — quick ascending tone
+function playExtraLife() {
+  var ac = getAudioCtx(); if (!ac) return;
+  try {
+    [440, 554, 659, 880].forEach(function(f, i) {
+      var t = ac.currentTime + i * 0.08;
+      var osc = ac.createOscillator();
+      var g = ac.createGain();
+      osc.connect(g); g.connect(ac.destination);
+      osc.type = 'square';
+      osc.frequency.value = f;
+      g.gain.setValueAtTime(0.12, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+      osc.start(t); osc.stop(t + 0.08);
+    });
+  } catch(e) {}
+}
 
 // ─── Explosion ticks ──────────────────────────────────────────────────────────
 function updateExplosions() {
@@ -1298,6 +1434,7 @@ function showStartScreen() {
 document.getElementById('playBtn').addEventListener('click', function(e) {
   e.target.blur();
   document.getElementById('overlay').style.display = 'none';
+  getAudioCtx(); // init/resume AudioContext on user gesture
 
   // Load hi-score
   try {
@@ -1312,6 +1449,7 @@ document.getElementById('playBtn').addEventListener('click', function(e) {
 document.getElementById('restartBtn').addEventListener('click', function(e) {
   e.target.blur();
   document.getElementById('gameover-overlay').style.display = 'none';
+  getAudioCtx(); // init/resume AudioContext on user gesture
 
   // Load hi-score
   try {
