@@ -856,6 +856,9 @@ function initInput() {
   keys = { left: false, right: false, fire: false };
 
   document.addEventListener('keydown', function(e) {
+    // Don't capture keys when typing in an input field
+    if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+
     if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
       keys.left = true;
       e.preventDefault();
@@ -897,6 +900,7 @@ function initInput() {
   });
 
   document.addEventListener('keyup', function(e) {
+    if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
     if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
     if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
     if (e.key === ' ') keys.fire = false;
@@ -1767,6 +1771,10 @@ document.getElementById('submitBtn').addEventListener('click', function(e) {
 
 document.getElementById('player-input').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') { e.preventDefault(); submitScore(); }
+});
+// Filter: only A-Z allowed, auto-uppercase
+document.getElementById('player-input').addEventListener('input', function() {
+  this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6);
 });
 
 // Help overlay tap to close
