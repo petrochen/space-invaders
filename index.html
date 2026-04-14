@@ -1181,7 +1181,7 @@ function startWave() {
 // ─── Leaderboard ─────────────────────────────────────────────────────────────
 function submitScore() {
   var input = document.getElementById('player-input');
-  var name = input.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6);
+  var name = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
   if (name.length < 1) { input.style.borderColor = '#f00'; return; }
 
   // Save name for next time
@@ -1803,9 +1803,9 @@ document.getElementById('submitBtn').addEventListener('click', function(e) {
 document.getElementById('player-input').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') { e.preventDefault(); submitScore(); }
 });
-// Filter: only A-Z allowed, auto-uppercase
+// Filter: only A-Z and 0-9 allowed, auto-uppercase
 document.getElementById('player-input').addEventListener('input', function() {
-  this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6);
+  this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
 });
 
 // Help overlay tap to close
