@@ -327,17 +327,26 @@
       <div class="hi-score-msg" id="hiscore-msg"></div>
 
       <div id="submit-section">
-        <div style="font-size:6px;color:#aaa;margin-bottom:8px;">ENTER YOUR NAME:</div>
-        <input type="text" id="player-input" maxlength="6"
-               style="font-family:'Press Start 2P',monospace; font-size:10px;
-                      background:#111; color:#0f0; border:2px solid #0f0;
-                      padding:8px 12px; text-align:center; width:120px;
-                      text-transform:uppercase; outline:none;"
-               placeholder="NAME" autocomplete="off" autocorrect="off"
-               autocapitalize="characters" spellcheck="false">
-        <button id="submitBtn" style="font-family:'Press Start 2P',monospace;
-                font-size:8px; background:#0f0; color:#000; border:none;
-                padding:8px 16px; cursor:pointer; margin-left:8px;">SUBMIT</button>
+        <!-- Auto-submitted state: shows name + change link -->
+        <div id="auto-submitted" style="display:none;font-size:7px;margin-bottom:4px;">
+          <span style="color:#aaa;">Saved as </span>
+          <span id="auto-name" style="color:#0f0;cursor:pointer;text-decoration:underline;" title="Tap to change name"></span>
+        </div>
+        <div id="auto-rank" style="display:none;font-size:8px;color:#FFD700;margin-bottom:4px;"></div>
+        <!-- Manual input state: first time or changing name -->
+        <div id="name-input-row" style="display:none;">
+          <div style="font-size:6px;color:#aaa;margin-bottom:8px;">ENTER YOUR NAME:</div>
+          <input type="text" id="player-input" maxlength="6"
+                 style="font-family:'Press Start 2P',monospace; font-size:10px;
+                        background:#111; color:#0f0; border:2px solid #0f0;
+                        padding:8px 12px; text-align:center; width:120px;
+                        text-transform:uppercase; outline:none;"
+                 placeholder="NAME" autocomplete="off" autocorrect="off"
+                 autocapitalize="characters" spellcheck="false">
+          <button id="submitBtn" style="font-family:'Press Start 2P',monospace;
+                  font-size:8px; background:#0f0; color:#000; border:none;
+                  padding:8px 16px; cursor:pointer; margin-left:8px;">SUBMIT</button>
+        </div>
       </div>
 
       <div id="leaderboard-section" style="margin-top:16px; width:100%; max-width:280px;">
@@ -1184,11 +1193,11 @@ function submitScore() {
   var name = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
   if (name.length < 1) { input.style.borderColor = '#f00'; return; }
 
-  // Save name for next time
+  // Save name — next game will auto-submit
   playerName = name;
+  savedPlayerName = name;
   try { localStorage.setItem('si_player', name); } catch(e) {}
 
-  // Disable submit button
   var btn = document.getElementById('submitBtn');
   btn.textContent = '...';
   btn.disabled = true;
@@ -1197,22 +1206,19 @@ function submitScore() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      game: GAME_ID,
-      player: name,
-      score: score,
-      level: wave,
-      token: gameToken,
-      email: '' // honeypot
+      game: GAME_ID, player: name, score: score,
+      level: wave, token: gameToken, email: ''
     })
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.ok) {
-      btn.textContent = '#' + data.rank;
-      btn.style.background = '#FFD700';
-      // Hide submit section after success
-      document.getElementById('submit-section').style.opacity = '0.5';
-      input.disabled = true;
+      // Switch to auto-submitted view
+      document.getElementById('name-input-row').style.display = 'none';
+      document.getElementById('auto-submitted').style.display = 'block';
+      document.getElementById('auto-name').textContent = name;
+      document.getElementById('auto-rank').style.display = 'block';
+      document.getElementById('auto-rank').textContent = 'RANK #' + data.rank;
     } else {
       btn.textContent = 'ERR';
       btn.style.background = '#f00';
@@ -1266,22 +1272,62 @@ function triggerGameOver() {
   }
   document.getElementById('hiscore-msg').textContent = msg;
 
-  // Pre-fill saved name
-  var input = document.getElementById('player-input');
-  input.value = savedPlayerName;
-  input.disabled = false;
-  input.style.borderColor = '#0f0';
-  var submitBtn = document.getElementById('submitBtn');
-  submitBtn.textContent = 'SUBMIT';
-  submitBtn.disabled = false;
-  submitBtn.style.background = '#0f0';
-  document.getElementById('submit-section').style.opacity = '1';
+  var autoDiv = document.getElementById('auto-submitted');
+  var autoRank = document.getElementById('auto-rank');
+  var inputRow = document.getElementById('name-input-row');
 
-  // Load leaderboard
+  if (savedPlayerName) {
+    // Auto-submit with saved name — no input needed
+    autoDiv.style.display = 'block';
+    autoRank.style.display = 'block';
+    autoRank.textContent = 'Submitting...';
+    inputRow.style.display = 'none';
+    document.getElementById('auto-name').textContent = savedPlayerName;
+    playerName = savedPlayerName;
+    autoSubmitScore();
+  } else {
+    // First time — show input
+    autoDiv.style.display = 'none';
+    autoRank.style.display = 'none';
+    inputRow.style.display = 'block';
+    var input = document.getElementById('player-input');
+    input.value = '';
+    input.disabled = false;
+    input.style.borderColor = '#0f0';
+    var submitBtn = document.getElementById('submitBtn');
+    submitBtn.textContent = 'SUBMIT';
+    submitBtn.disabled = false;
+    submitBtn.style.background = '#0f0';
+  }
+
   loadLeaderboard();
 
   var go = document.getElementById('gameover-overlay');
   go.style.display = 'flex';
+}
+
+function autoSubmitScore() {
+  fetch(API_URL + '/api/score', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      game: GAME_ID, player: playerName, score: score,
+      level: wave, token: gameToken, email: ''
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var autoRank = document.getElementById('auto-rank');
+    if (data.ok) {
+      autoRank.textContent = 'RANK #' + data.rank;
+    } else {
+      autoRank.textContent = '';
+    }
+    loadLeaderboard();
+  })
+  .catch(function() {
+    document.getElementById('auto-rank').textContent = '';
+  });
 }
 
 // ─── UFO ─────────────────────────────────────────────────────────────────────
@@ -1806,6 +1852,23 @@ document.getElementById('player-input').addEventListener('keydown', function(e) 
 // Filter: only A-Z and 0-9 allowed, auto-uppercase
 document.getElementById('player-input').addEventListener('input', function() {
   this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+});
+
+// Tap name to change it
+document.getElementById('auto-name').addEventListener('click', function() {
+  document.getElementById('auto-submitted').style.display = 'none';
+  document.getElementById('auto-rank').style.display = 'none';
+  var inputRow = document.getElementById('name-input-row');
+  inputRow.style.display = 'block';
+  var input = document.getElementById('player-input');
+  input.value = savedPlayerName;
+  input.disabled = false;
+  input.style.borderColor = '#0f0';
+  var btn = document.getElementById('submitBtn');
+  btn.textContent = 'SUBMIT';
+  btn.disabled = false;
+  btn.style.background = '#0f0';
+  input.focus();
 });
 
 // Help overlay tap to close
